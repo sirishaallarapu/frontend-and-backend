@@ -12,7 +12,8 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 echo "Cloning repository..."
-                git 'https://github.com/wlsf82/frontend-and-backend.git'
+                git 'https://github.com/sirishaallarapu/frontend-and-backend.git'
+
             }
         }
 
