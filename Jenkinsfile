@@ -12,8 +12,7 @@ pipeline {
         stage('Checkout Code') {
             steps {
                 echo "Cloning repository..."
-                git 'https://github.com/sirishaallarapu/frontend-and-backend.git'
-
+                git branch: 'main', url: 'https://github.com/sirishaallarapu/frontend-and-backend.git'
             }
         }
 
@@ -38,16 +37,12 @@ pipeline {
         stage('Run Containers') {
             steps {
                 echo "Starting backend and frontend containers..."
-                // Stop any old containers if they exist
                 sh 'docker stop ${BACKEND_CONTAINER} || true'
                 sh 'docker rm ${BACKEND_CONTAINER} || true'
                 sh 'docker stop ${FRONTEND_CONTAINER} || true'
                 sh 'docker rm ${FRONTEND_CONTAINER} || true'
 
-                // Start backend first
                 sh 'docker run -d -p 3000:3001 --name ${BACKEND_CONTAINER} ${BACKEND_IMAGE}'
-
-                // Start frontend (link to backend)
                 sh 'docker run -d -p 8080:8080 --name ${FRONTEND_CONTAINER} ${FRONTEND_IMAGE}'
             }
         }
@@ -76,7 +71,7 @@ pipeline {
     post {
         always {
             echo "Pipeline finished!"
-            sh 'docker system prune -f'
+            sh 'docker system prune -f || true'
         }
     }
 }
