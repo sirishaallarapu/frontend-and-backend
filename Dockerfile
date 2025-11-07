@@ -10,5 +10,5 @@ RUN npm install
 RUN npm run build
 
 WORKDIR /app/backend
-EXPOSE 3001
-CMD ["npm", "start"]
+EXPOSE 8082
+CMD ["sh", "-c", "PORT=8082 node server.js"]
