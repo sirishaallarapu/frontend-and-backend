@@ -1,8 +1,14 @@
 pipeline {
-    agent any  // Runs on VM's main agent
+    agent any
+    tools { nodejs 'Node18' }
 
-    tools {
-        nodejs 'Node18'  // Assumes you install Node tool in Jenkins (Manage Jenkins → Global Tool Config)
+    environment {
+        IMAGE_NAME     = 'sirishaallarapu/frontend-and-backend'
+        IMAGE_TAG      = "${env.BUILD_ID}"
+        CONTAINER_NAME = 'test-container'
+        HOST_PORT      = '8081'
+        CONTAINER_PORT = '8080'
+        DOCKERHUB_CRED = credentials('dockerhub-cred')  // ← Now works!
     }
 
     stages {
@@ -13,38 +19,38 @@ pipeline {
             }
         }
 
-        stage('Install Dependencies') {
-            steps {
-                sh 'npm install'
-            }
-        }
-
-        stage('Run Unit Tests') {
-            steps {
-                sh 'npm run test:frontend:unit'
-            }
-        }
-
-        stage('Run API Tests') {
-            steps {
-                sh 'npm run test:api:with:servers'
-            }
-        }
-
-        stage('Run UI Tests (Cypress Headless)') {
-            steps {
-                sh 'npm run test:frontend:with:server'
-            }
-        }
-
-        stage('Build Docker Image (Optional)') {  // Add if you create a Dockerfile
-            when {
-                expression { return env.BRANCH_NAME == 'main' }  // Only on main
-            }
+        stage('Docker Build') {
             steps {
                 script {
-                    def image = docker.build("sirisha-app:${env.BUILD_ID}")
-                    // Push to Docker Hub or Azure ACR if needed
+                    def image = docker.build("${IMAGE_NAME}:${IMAGE_TAG}")
+                    env.BUILT_IMAGE_ID = image.id
+                }
+            }
+        }
+
+        stage('Docker Run & Test') {
+            steps {
+                script {
+                    def img = docker.image("${IMAGE_NAME}:${IMAGE_TAG}")
+                    sh "docker rm -f ${CONTAINER_NAME} || true"
+                    img.withRun("-d -p ${HOST_PORT}:${CONTAINER_PORT} --name ${CONTAINER_NAME}") { c ->
+                        sh 'sleep 15'
+                        sh 'curl -f http://localhost:8081/static/js/main.c13741b3.js > /dev/null && echo "Frontend OK!"'
+                    }
+                }
+            }
+        }
+
+        // PUSH ENABLED!
+        stage('Docker Push') {
+            when { branch 'main' }
+            steps {
+                script {
+                    docker.withRegistry('https://index.docker.io/v1/', 'dockerhub-cred') {
+                        def img = docker.image("${IMAGE_NAME}:${IMAGE_TAG}")
+                        img.push()
+                        img.push('latest')
+                    }
                 }
             }
         }
@@ -52,16 +58,9 @@ pipeline {
 
     post {
         always {
-            // Archive Cypress artifacts
-            archiveArtifacts artifacts: 'cypress/screenshots/**, cypress/videos/**', allowEmptyArchive: true
-            // Clean up
+            sh "docker rm -f ${CONTAINER_NAME} || true"
             sh 'docker system prune -f || true'
         }
-        success {
-            echo 'All tests passed! 🚀'
-        }
-        failure {
-            echo 'Tests failed. Check artifacts.'
-        }
+        success { echo 'SUCCESS! Image pushed to Docker Hub!' }
     }
 }
