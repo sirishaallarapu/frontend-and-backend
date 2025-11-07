@@ -1,24 +1,19 @@
 const port = 3001;
 const express = require('express');
 const bodyParser = require("body-parser");
-const path = require('path'); // ← Needed to serve React build
+const path = require('path');
 
 const app = express();
 
-// Middleware
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
-// CORS
 app.use(function(req, res, next) {
     res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
     next();
 });
 
-// ──────────────────────────────
-//  DATABASE & POST API
-// ──────────────────────────────
 const database = {
     customers: [
         { id: 1, name: "Americas Inc.", employees: 100, contactInfo: { name: "John Smith", email: "jsmith@americasinc.com"}},
@@ -48,19 +43,14 @@ app.post('/', (req, res) => {
     return res.json(response);
 });
 
-// ──────────────────────────────
-//  SERVE REACT BUILD (FRONTEND)
-// ──────────────────────────────
+// SERVE REACT BUILD
 app.use(express.static(path.join(__dirname, '../frontend/build')));
 
-// Catch-all handler: send back React's index.html for any request that doesn't match API
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
 });
 
-// ──────────────────────────────
-//  START SERVER (bind to 0.0.0.0 for Docker)
-// ──────────────────────────────
+// START SERVER
 app.listen(port, '0.0.0.0', () => {
     console.log(`Backend app listening on port ${port}!`);
     console.log(`Serving React app from: ${path.join(__dirname, '../frontend/build')}`);
