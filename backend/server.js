@@ -1,16 +1,24 @@
 const port = 3001;
-const express = require('express')
+const express = require('express');
 const bodyParser = require("body-parser");
+const path = require('path'); // ← ADD THIS
+
 const app = express();
 
+// Middleware
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
+
+// CORS
 app.use(function(req, res, next) {
-    res.header("Access-Control-Allow-Origin", "*"); 
+    res.header("Access-Control-Allow-Origin", "*");
     res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
     next();
 });
 
+// ──────────────────────────────
+//  DATABASE & API
+// ──────────────────────────────
 const database = {
     customers: [
         { id: 1, name: "Americas Inc.", employees: 100, contactInfo: { name: "John Smith", email: "jsmith@americasinc.com"}},
@@ -24,20 +32,35 @@ const database = {
 
 const getSize = (customer) => {
     return customer.employees <= 100 ? "Small" : customer.employees <= 1000 ? "Medium" : "Big";
-}
+};
 
 app.post('/', (req, res) => {
     const { name } = req.body;
     const response = {
-        name, 
+        name,
         timestamp: (new Date()).toDateString(),
         customers: database.customers.map(customer => {
-            customer.size = getSize(customer)
+            customer.size = getSize(customer);
             return customer;
         })
     };
-    res.set('Access-Control-Allow-Origin', '*')
+    res.set('Access-Control-Allow-Origin', '*');
     return res.json(response);
 });
 
-app.listen(port, () => console.log(`Backend app listening on port ${port}!`))
+// ──────────────────────────────
+//  SERVE REACT BUILD (FRONTEND)
+// ──────────────────────────────
+app.use(express.static(path.join(__dirname, '../frontend/build')));
+
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/build/index.html'));
+});
+
+// ──────────────────────────────
+//  START SERVER
+// ──────────────────────────────
+app.listen(port, '0.0.0.0', () => {
+    console.log(`Backend app listening on port ${port}!`);
+    console.log(`Serving React app from /app/frontend/build`);
+});
