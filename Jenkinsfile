@@ -1,77 +1,67 @@
 pipeline {
-    agent any
+    agent any  // Runs on VM's main agent
 
-    environment {
-        BACKEND_IMAGE = "backend:latest"
-        FRONTEND_IMAGE = "frontend:latest"
-        BACKEND_CONTAINER = "backend-container"
-        FRONTEND_CONTAINER = "frontend-container"
+    tools {
+        nodejs 'Node18'  // Assumes you install Node tool in Jenkins (Manage Jenkins → Global Tool Config)
     }
 
     stages {
-        stage('Checkout Code') {
+        stage('Checkout') {
             steps {
-                echo "Cloning repository..."
-                git branch: 'main', url: 'https://github.com/sirishaallarapu/frontend-and-backend.git'
+                git branch: 'main',
+                    url: 'https://github.com/sirishaallarapu/frontend-and-backend.git'
             }
         }
 
-        stage('Build Backend Docker Image') {
+        stage('Install Dependencies') {
             steps {
-                echo "Building backend image..."
-                dir('backend') {
-                    sh 'docker build -t ${BACKEND_IMAGE} .'
+                sh 'npm install'
+            }
+        }
+
+        stage('Run Unit Tests') {
+            steps {
+                sh 'npm run test:frontend:unit'
+            }
+        }
+
+        stage('Run API Tests') {
+            steps {
+                sh 'npm run test:api:with:servers'
+            }
+        }
+
+        stage('Run UI Tests (Cypress Headless)') {
+            steps {
+                sh 'npm run test:frontend:with:server'
+            }
+        }
+
+        stage('Build Docker Image (Optional)') {  // Add if you create a Dockerfile
+            when {
+                expression { return env.BRANCH_NAME == 'main' }  // Only on main
+            }
+            steps {
+                script {
+                    def image = docker.build("sirisha-app:${env.BUILD_ID}")
+                    // Push to Docker Hub or Azure ACR if needed
                 }
-            }
-        }
-
-        stage('Build Frontend Docker Image') {
-            steps {
-                echo "Building frontend image..."
-                dir('frontend') {
-                    sh 'docker build -t ${FRONTEND_IMAGE} .'
-                }
-            }
-        }
-
-        stage('Run Containers') {
-            steps {
-                echo "Starting backend and frontend containers..."
-                sh 'docker stop ${BACKEND_CONTAINER} || true'
-                sh 'docker rm ${BACKEND_CONTAINER} || true'
-                sh 'docker stop ${FRONTEND_CONTAINER} || true'
-                sh 'docker rm ${FRONTEND_CONTAINER} || true'
-
-                sh 'docker run -d -p 3000:3001 --name ${BACKEND_CONTAINER} ${BACKEND_IMAGE}'
-                sh 'docker run -d -p 8080:8080 --name ${FRONTEND_CONTAINER} ${FRONTEND_IMAGE}'
-            }
-        }
-
-        stage('Test Application') {
-            steps {
-                echo "Testing backend API..."
-                sh 'curl -X POST http://localhost:3000 -H "Content-Type: application/json" -d \'{"name":"JenkinsTest"}\''
-
-                echo "Testing frontend page..."
-                sh 'curl -I http://localhost:8080 || true'
-            }
-        }
-
-        stage('Clean Up') {
-            steps {
-                echo "Cleaning up containers..."
-                sh 'docker stop ${BACKEND_CONTAINER} || true'
-                sh 'docker rm ${BACKEND_CONTAINER} || true'
-                sh 'docker stop ${FRONTEND_CONTAINER} || true'
-                sh 'docker rm ${FRONTEND_CONTAINER} || true'
             }
         }
     }
 
     post {
         always {
-            echo "Pipeline finished!"
+            // Archive Cypress artifacts
+            archiveArtifacts artifacts: 'cypress/screenshots/**, cypress/videos/**', allowEmptyArchive: true
+            // Clean up
             sh 'docker system prune -f || true'
+        }
+        success {
+            echo 'All tests passed! 🚀'
+        }
+        failure {
+            echo 'Tests failed. Check artifacts.'
         }
     }
 }
